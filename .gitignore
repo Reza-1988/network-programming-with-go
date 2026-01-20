@@ -1,0 +1,42 @@
+# =====================
+# Go build artifacts
+# =====================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.test
+*.out
+*.prof
+*.coverprofile
+
+# Binaries (common names)
+main
+app
+
+# Go workspace file (Go 1.18+)
+go.work
+go.work.sum
+
+# =====================
+# IDE / Editor
+# =====================
+.idea/
+*.iml
+
+.vscode/
+
+# =====================
+# OS files
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# Logs / temp
+# =====================
+*.log
+tmp/
+temp/
