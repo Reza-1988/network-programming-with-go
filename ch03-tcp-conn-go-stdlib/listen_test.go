@@ -9,8 +9,8 @@ import (
 // To create a TCP server capable of listening for incoming connections (called a listener), use the `net.Listen` function.
 // This function will return an object that implements the `net.Listener` interface.
 
+// ### Listing 3-1: Creating a listener on 127.0.0.1 using a random port.
 func TestListener(t *testing.T) {
-	// ### Listing 3-1: Creating a listener on 127.0.0.1 using a random port.
 	// `net.Listen`
 	// 		- The `net.Listen` function accepts a network type ("tcp") and
 	//        an IP address and port separated by a colon "127.0.0.1:0"
