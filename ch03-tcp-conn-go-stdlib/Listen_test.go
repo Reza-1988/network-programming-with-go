@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// --- STEP 1 ---
+
 // ## Binding, Listening for, and Accepting Connections
 // To create a TCP server capable of listening for incoming connections (called a listener), use the `net.Listen` function.
 // This function will return an object that implements the `net.Listener` interface.

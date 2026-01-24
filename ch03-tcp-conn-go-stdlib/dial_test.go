@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// --- STEP 2 ---
+
 // ## Establishing a Connection with a Server
 // From the client’s side, Go’s standard library net package makes reaching out and
 // establishing a connection with a server a simple matter.
@@ -64,7 +66,7 @@ func TestDial(t *testing.T) {
 				// When this goroutine finishes, this defer is executed,
 				//	- the connection is closed, and a message is sent to the done channel, meaning this connection is closed or down.
 				defer func() {
-					c.Close()
+					_ = c.Close()
 					done <- struct{}{}
 				}()
 				// What does buffer mean?
@@ -92,6 +94,7 @@ func TestDial(t *testing.T) {
 			}(conn)
 		}
 	}()
+
 	// - The standard library’s `net.Dial()` function is like the `net.Listen()` function in that it accepts a network
 	//   like tcp and an IP address and port combination in this case, the IP address and port of the listener to which it’s trying to connect.
 	// - You can use a hostname in place of an IP address and a service name, like http, in place of a port number.
@@ -108,20 +111,23 @@ func TestDial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	//
-	conn.Write([]byte("hello"))
-	conn.Close()
+
+	// We send "hello" to the server (via TCP connection).
+	// Write returns two outputs: the number of bytes written and an error.
+	// Here, we ignored both (_ , _) to simplify the test.
+	_, _ = conn.Write([]byte("hello"))
 
 	// Now that you’ve established a successful connection to the listener, you initiate a graceful termination of the connection from the client’s side (8).
 	// After receiving the FIN packet, the Read method (4) returns the `io.EOF` error,
 	// indicating to the listener’s code that you closed your side of the connection. The connection’s handler (3) exits, calling the connection’s Close method on the way out.
 	// This sends a FIN packet to your connection, completing the graceful termination of the TCP session.
-	conn.Close() // (8)
+	_ = conn.Close() // (8) Close the TCP connection from the client side so that the server (Read) can either get the remaining data
 	<-done
+
 	// Finally, you close the listener (9). The listener’s Accept method (2) immediately unblocks and returns an error.
 	// This error isn’t necessarily a failure, so you simply log it and move on. It doesn’t cause your test to fail.
 	// The listener’s goroutine (1) exits, and the test completes.
-	listener.Close() // (9)
+	_ = listener.Close() // (9)
 	<-done
 
 	// What are these two `<-done`s for?
