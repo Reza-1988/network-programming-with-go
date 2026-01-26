@@ -32,17 +32,64 @@ func TestDialContex(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), dl) // (2)
 	defer cancel()                                                // (3)
 
+	// Then, you override the dialer’s Control function (4) to delay the connection just long enough to make sure you exceed the context’s deadline.
 	var d net.Dialer // DialContext is a method on a Dialer
+	// What exactly is `d.Control`?
+	// 	- `Control` is a callback (hook function) on `net.Dialer` that Go calls during socket/connection creation.
+	// 	- This means that before/while the connection is actually established, this function is executed so that you can do things like:
+	// 		- Low-level socket settings (like `setsockopt`)
+	// 		- Or in this test: artificial delays.
 	d.Control = func(_, _ string, _ syscall.RawConn) error { // (4)
 		// Sleep long enough to reach the context's deadline.
+		// Why did you put `+ time.Millisecond`?
+		// 	- Because if you put exactly 5*time.Second:
+		// 		- It could be right on the border due to system timing/accuracy of timers and the test would sometimes be flaky
+		// 		- With +1ms they make sure they will definitely miss the deadline
 		time.Sleep(5*time.Second + time.Millisecond)
 		return nil
+		// So what does this code do?
+		// 	- You override Control and put: `time.Sleep(5*time.Second + time.Millisecond)`
+		// 	- This means:
+		// 		- Hold it for more than 5 seconds
+		// 		- And since the deadline context is set exactly 5 seconds ahead:
+		// 			- When DialContext(ctx, ...) is waiting for the connection result
+		// 			- the deadline is reached and ctx is canceled
+		//			- Then Dial should return with an error
+		// 		- More precisely:
+		//			- Dial starts But you intentionally slow it down with Control
+		// 			- And the result is that it timeouts “before the connection is completed”
 	}
+
+	// Finally, you pass in the context as the first argument to the `DialContext()` function (5).
+	// The sanity check (6) at the end of the test makes sure that reaching the deadline canceled the context, not an erroneous call to cancel.
+	//
+	// As with DialTimeout, if a host resolves to multiple IP addresses, Go starts a connection race between each IP address, giving the primary IP address a head start.
+	//	- The first connection to succeed persists, and the remaining contenders cancel their connection attempts.
+	//	- If all connections fail or the context reaches its deadline, `net.Dialer.DialContext` returns an error.
+	//
+	// This is the main line: Attempting to connect with Context
+	// 	- `conn, err := d.DialContext(ctx, "tcp", "10.0.0.0:80")` That is:
+	// 		- With this dialer (which Control intentionally slowed down), go to address 10.0.0.0 on port 80
+	// 		- But because ctx deadline = 5 seconds and, we slept for more than 5 seconds inside Control:
+	// 		- The deadline must be reached before the connection can be established and the connection will time out
 	conn, err := d.DialContext(ctx, "tcp", "10.0.0.0:80") // (5)
-	if err != nil {
+	// If err == nil, it means the connection was successful and no timeout occurred → it should fail.
+	if err == nil {
 		_ = conn.Close()
 		t.Fatal("connection did not time out")
 	}
+	// Why does it check `net.Error`?
+	//	- `nErr, ok := err.(net.Error)` means:
+	// 		- Is this err a network error that has more information?
+	// 		- If it is:
+	// 			- It checks `nErr.Timeout()` means:
+	// 				- Is this error really a timeout?
+	// 				- This is very important because:
+	// 					- The error may not be a "timeout", for example:
+	//						- network unreachable
+	// 						- connection refused
+	//						- or anything else
+	// - This test wants to see exactly the timeout
 	nErr, ok := err.(net.Error)
 	if !ok {
 		t.Error(err)
@@ -51,6 +98,15 @@ func TestDialContex(t *testing.T) {
 			t.Errorf("error is not a timeout: %v", err)
 		}
 	}
+	// Final check: Make sure the cancellation was due to Deadline
+	// 	- if `ctx.Err() != context.DeadlineExceeded { ... }` means:
+	// 		- What was the reason for the context cancellation?
+	// 	- If the deadline has been reached:
+	// 		- `ctx.Err()` becomes `context.DeadlineExceeded`
+	//  - If someone manually called cancel():
+	// 		- `ctx.Err()` usually becomes `context.Canceled`
+	// - So this line ensures:
+	// 		- The cancellation was due to timeout, not manual cancellation
 	if ctx.Err() != context.DeadlineExceeded { // (6)
 		t.Errorf("expected deadline exceeded; actual: %v", ctx.Err())
 	}
