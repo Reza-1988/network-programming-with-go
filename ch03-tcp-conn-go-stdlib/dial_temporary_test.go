@@ -50,7 +50,7 @@ import (
 // Listing 3-4: Asserting a net.Error to check whether the error was temporary
 func TestDialTemporary(t *testing.T) {
 
-	listener, err := net.Listen("tcp", "127.0.0.1:")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +75,14 @@ func TestDialTemporary(t *testing.T) {
 				// 			- We just log and, We wait a bit (50ms) until the CPU is not 100%
 				// 			- Then we go to the beginning of the loop with `continue` and again `Accept()`
 				// 			- Result: The server becomes "resistant" and does not die with a short error.
-				if nErr, ok := err.(net.Error); ok && !nErr.Temporary() {
+				if nErr, ok := err.(net.Error); ok && nErr.Temporary() {
 					// The error is temporary => the server won't die, it will try again
 					t.Logf("temporary accept error: %v", err)
 					time.Sleep(50 * time.Microsecond) // Prevent busy loop
 					continue
 				}
 				// The error is not temporary => usually means the listener is closed or a serious error
-				t.Log("accept stopped: %v", err)
+				t.Logf("accept stopped: %v", err)
 				return
 			}
 
