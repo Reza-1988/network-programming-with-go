@@ -36,12 +36,13 @@ import (
 //
 // - You use a wait group to make sure the test doesn’t proceed until all dial goroutines terminate after you cancel the context.
 // - Once the goroutines are running, one will win the race and make a successful connection to the listener.
-//	- You receive the winning dialer’s ID on the `res` channel (5), then abort the losing dialers by canceling the context.
-// 	- At this point, the call to wg.Wait blocks until the aborted dialer goroutines return.
+//   - You receive the winning dialer’s ID on the `res` channel (5), then abort the losing dialers by canceling the context.
+//   - At this point, the call to wg.Wait blocks until the aborted dialer goroutines return.
+//
 // - Finally, you make sure it was your call to cancel that caused the cancelation of the context (6).
-//	- Calling cancel does not guarantee that Err will return `context.Canceled`.
-// 	- The deadline can cancel the context, at which point calls to cancel become a no-op and Err will return context.DeadlineExceeded.
-//	- In  practice, the distinction may not matter to you, but it’s there if you need it.
+//   - Calling cancel does not guarantee that Err will return `context.Canceled`.
+//   - The deadline can cancel the context, at which point calls to cancel become a no-op and Err will return context.DeadlineExceeded.
+//   - In  practice, the distinction may not matter to you, but it’s there if you need it.
 //
 // ---
 // The big picture
@@ -97,6 +98,25 @@ func TestDialContextCancelFanOut(t *testing.T) {
 				_ = conn.Close()
 			}
 		}()
+		// This goroutine goes into wait mode on: `listener.Accept()`
+		// 	- It accepts the first connection it comes across and gets the `conn`.
+		// 	- Then if there are no errors:
+		// 		- It immediately Closes() the same conn.
+		// 		- And then the goroutine terminates.
+		// 	- So the practical result:
+		// 		- This goroutine only accepts once (because it is not in a loop)
+		// 		- After that, it does not accept any other connections
+		// 		- So in this test, only one dialer has a real chance of “successfully connecting” (the one that arrived first)
+		// - But one important point:
+		// 		- The listener itself is still open (until the defer listener.Close() is executed)
+		//		- That means the other dialers may:
+		// 			- either get stuck/timeout
+		// 			- or get an error
+		//			- or get interrupted in the middle because the context is canceled
+		//			- (depending on the system's scheduling)
+		// - But from the perspective of the “one who accepts”:
+		//		- Only that one connection is processed and then we don't receive anymore.
+		// ---
 
 		// Step 4) Define the dial function (common code for each dialer)
 		// What does this function do?
@@ -141,6 +161,37 @@ func TestDialContextCancelFanOut(t *testing.T) {
 		for i := 0; i < 10; i++ { // (4)
 			wg.Go(func() { dial(ctx, listener.Addr().String(), res, i+1) })
 		}
+		// Note 1) How is the "anonymous function" implemented here?
+		// 	- This part: `func() { dial(...) }`
+		// 		- Creates an anonymous function (i.e. a function that has no name).
+		// 		- Important point:
+		// 			- Since it doesn't end with (), you didn't execute it yourself.
+		// 			- You just "delivered" this function to `wg.Go`.
+		// 			- So the actual execution of this function is done by wg.Go, not you.
+		// 		- That is, wg.Go behaves like this:
+		// 			- "Run this function inside a goroutine"
+		// 			- Result: `func(){...}` here plays the role of "the work to be done" (Job).
+		// Note 2) What does this goroutine + WaitGroup model mean and why is it used?
+		//	- The purpose of WaitGroup is to:
+		// 		- When you have multiple goroutines running,
+		// 		- the program/test will wait until they all finish.
+		// 		- In standard Go form, it usually looks like this:
+		//		```wg.Add(1)
+		//			go func() {
+		//    			defer wg.Done()
+		//    			dial(...)
+		//   			}()```
+		//			- This means is:
+		// 				- `Add(1)` → says "A task has started"
+		// 				- `go func(){...}` → runs the task simultaneously
+		// 				- `Done()` → says "This task is done"
+		// 				- Wait() → waits until the number of remaining tasks reaches zero
+		//		- Now wg.Go(func(){...}) (if it really exists) is just a shortcut that does the same things all at once:
+		// 			- It does Add(1)
+		// 			- It runs the goroutine
+		//			- It finally calls `Done()`
+		// 			- Result: You just give it the "work", and wg handles the counting and waiting.
+		// ---
 
 		// Step 7) We wait for either someone to respond or the deadline to arrive.
 		// 	- If the deadline is reached before the response → ctx.Done() is triggered
@@ -158,6 +209,34 @@ func TestDialContextCancelFanOut(t *testing.T) {
 		// Step 8) We wait for all dialers to finish.
 		//	- That is, until all goroutines return.
 		wg.Wait()
+		// Why do we still need `wg.Wait()` even though the loop is finished?
+		// 	- Inside the loop, you do this:
+		// 		- Start 10 goroutines
+		// 		- But the goroutines: Run asynchronously
+		// 		- They may still be `DialingContext`
+		//		- Or waiting for the network/Context/Channel
+		// 		- So when the loop finishes, it means:
+		// 			- "All goroutines have started"
+		// 			- Not: "All goroutines have finished"
+		// What exactly does `wg.Wait()` do?
+		// 	- wg.Wait() says:
+		// 		- "Wait until all goroutines that wg has counted have called Done()."
+		// 		- That is:
+		// 			- The program will not move beyond this line until they have all finished.
+		// What is the use of this here?
+		// 	- In this test, there are several very important reasons:
+		// 		- 1) Prevent premature termination of the test
+		// 			- If `wg.Wait()` is not there:
+		// 				- The test may finish
+		// 				- But some goroutines are still running
+		// 				- Result: Tests will be flaky or incomplete
+		// 		- 2) Prevent goroutine leaks
+		// 			- Some goroutines may still be stuck (e.g. waiting for a dial or channel)
+		// 			- `wg.Wait()` helps to make sure that they are all collected.
+		// 		- 3) Check the final result correctly
+		// 			- After select and cancel, you check what happened to `ctx.Err()`
+		// 			- But if some goroutines are still running, the behaviors/logs may still be ongoing.
+		// ---
 
 		// Step 9) Checks if the reason for ending the context was cancel
 		//	- Because "We expect" is found to be the winner and cancel() is called
