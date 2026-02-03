@@ -277,7 +277,7 @@ func TestDialContextCancelFanOut(t *testing.T) {
 			if err != nil {
 				return
 			}
-			c.Close()
+			_ = c.Close()
 
 			select {
 			case <-ctx.Done():
