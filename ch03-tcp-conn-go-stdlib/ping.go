@@ -41,7 +41,22 @@ import (
 // 	- `reset <-chan time.Duration`
 // 		- A channel from which you can tell pinger:
 // 			- “Reset the timer” or “This is the new interval”
+//
+// 	- The Pinger function writes ping messages to a given writer at regular intervals.
+//		- Because it’s meant to run in a goroutine, Pinger accepts a `context` as its first argument so you can terminate it and prevent it from leaking.
+//		- Its remaining arguments include an `io.Writer` interface and a channel to signal a timer reset.
+//		- You create a buffered channel and put a duration on it to set the timer’s initial interval (1).
+//		- If the interval isn’t greater than zero, you use the default ping interval.
+// 	- You initialize the timer to the interval (2) and set up a deferred call to drain the timer’s channel to avoid leaking it, if necessary.
+// 	- The endless for loop contains a select statement, where you block until one of three things happens:
+//		- the context is canceled, a signal to reset the timer is received, or the timer expires.
+//			- If the context is canceled (3), the function returns, and no further pings will be sent.
+//			- If the code selects the reset channel (4), you shouldn’t send a ping, and the timer resets (6) before iterating on the select statement again.
+// 			- If the timer expires (5), you write a ping message to the writer, and the timer resets before the next iteration.
+//	- If you wanted, you could use this case to keep track of any consecutive time-outs that occur while writing to the writer.
+//		- To do this, you could pass in the context’s cancel function and call it here if you reach a threshold of consecutive time-outs.
 
+// ---
 // Step 0) Default value
 //   - If interval is not specified, a ping is performed every 30 seconds.
 const defaultPingInterval = 30 * time.Second
@@ -128,3 +143,36 @@ func Pinger(ctx context.Context, w io.Writer, reset <-chan time.Duration) {
 		_ = timer.Reset(interval) // (6)
 	}
 }
+
+// 1) What does `time.NewTimer` return?
+// 	- Returns a value of type `*time.Timer` (i.e. a "timer object").
+// 2) Where did `C` come from?
+// 	- The `time.Timer` type in the time package has a field called `C`. That is, its structure is roughly as follows:
+// 		- timer is a struct
+// 		- `C` is one of its fields
+// 	- In simple terms:
+// 		- `timer.C` means: "The channel through which the timer announces that the time has expired"
+// 	- 3) What exactly is `timer.C`?
+// 		- `timer.C` is of type:
+// 			- `<-chan time.Time`, It means:
+// 				- A read-only channel
+//				- that sends a time value (time.Time) into it when the timer "rings".
+// 4) So why do they just write `<-timer.C` in the code and not get its value?
+// 	- Because here they just want to “wait for the timer to ring”:
+// 		- `case <-timer.C`:
+//			- Timer ended
+// 			- We don’t need the time itself that comes into the channel
+// 			- Just the fact that “it happened” is enough
+// 	- If you want to get its time as well, you can:
+//		```case t := <-timer.C:
+//    			fmt.Println("timer fired at", t)```
+// 5) A very simple analogy
+// 	- A timer is like an alarm clock
+// 	- `timer.C` is like a “bell/wire” that when the clock rings, a signal comes
+// 	- `<-timer.C` means:
+// 		- “Wait for the bell to ring”
+// 6) Difference with time.After
+// 	- You may have seen:
+// 		- `<-time.After(5 * time.Second)`
+// 		- `time.After` also actually returns a channel
+// 	- `Timer` is a “more controllable” version of it (you can Stop/Reset)
