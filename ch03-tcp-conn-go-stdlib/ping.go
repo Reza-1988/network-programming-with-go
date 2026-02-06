@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// --- STEP 8 ---
 // ## Implementing a Heartbeat
 // For long-running network connections that may experience extended idle periods at the application level,
 // it’s wise to implement a heartbeat between nodes to advance the deadline.
