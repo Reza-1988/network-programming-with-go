@@ -108,8 +108,8 @@ func Pinger(ctx context.Context, w io.Writer, reset <-chan time.Duration) {
 	//	- Case A) ctx canceled
 	// 	- Case B) A new interval came from the reset channel. means:
 	// 		- Someone from outside said: “Change/reset interval”
-	// 		- First it stops the previous timer and if necessary it clears its channel
-	// 			- Then if the new value was positive:
+	// 		- First it stops the previous timer and if necessary it drains its channel
+	// 		- Then if the new value was positive:
 	//				- it changes the interval with it
 	// 		- If the new value was zero/negative:
 	//			- it does not change the interval (it remains the same)
@@ -134,6 +134,7 @@ func Pinger(ctx context.Context, w io.Writer, reset <-chan time.Duration) {
 		case <-timer.C: // (5)
 			if _, err := w.Write([]byte("ping")); err != nil {
 				// track and act on consecutive timeouts here
+
 				return
 			}
 		}

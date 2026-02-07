@@ -67,26 +67,25 @@ func ExamplePinger() {
 			fmt.Printf("resetting time (%s)\n", d)
 			resetTimer <- d
 		}
-	}
 
-	// 7) Read the first ping and measure its time
-	// 	- `now := time.Now()` → Start time
-	// 	- `r.Read(buf)` waits for something to come from the pipe
-	//		- The same "ping" that Pinger wrote on w
-	// 	- `n` is the number of bytes read
-	// 	- `buf[:n]` is the actual data itself
-	//	- time.Since(now) means:
-	// 		- How long did it take for this ping to arrive
-	// 		- `Round(100*time.Millisecond)` is just to make the time printout prettier.
-	now := time.Now()
-	buf := make([]byte, 1024)
-	n, err := r.Read(buf)
-	if err != nil {
-		fmt.Print(err)
+		// 7) Read the first ping and measure its time
+		// 	- `now := time.Now()` → Start time
+		// 	- `r.Read(buf)` waits for something to come from the pipe
+		//		- The same "ping" that Pinger wrote on w
+		// 	- `n` is the number of bytes read
+		// 	- `buf[:n]` is the actual data itself
+		//	- time.Since(now) means:
+		// 		- How long did it take for this ping to arrive
+		// 		- `Round(100*time.Millisecond)` is just to make the time printout prettier.
+		now := time.Now()
+		buf := make([]byte, 1024)
+		n, err := r.Read(buf)
+		if err != nil {
+			fmt.Print(err)
+		}
+		fmt.Printf("received %q (%s)\n",
+			buf[:n], time.Since(now).Round(100*time.Millisecond))
 	}
-	fmt.Printf("received %q (%s)\n",
-		buf[:n], time.Since(now).Round(100*time.Millisecond))
-
 	// 8) What does this loop do?
 	// 	- Here is a list of times (in milliseconds):
 	// 		- 0ms, 200ms, 300ms, 0ms, -1ms, -1ms, -1ms
