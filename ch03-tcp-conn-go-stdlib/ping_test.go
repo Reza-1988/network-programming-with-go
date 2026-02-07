@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// ## Advancing the Deadline by Using the Heartbeat
+// Each side of a network connection could use a Pinger to advance its deadline if the other side becomes idle,
+// whereas the previous examples showed only a single side using a Pinger.
+// When either node receives data on the network connection, its ping timer should reset to stop the delivery of an unnecessary ping.
+// Listing 3-12 is a new file named ping_test.go that shows how you can use incoming messages to advance the deadline.
+
+// Listing 3-12: Receiving data advances the deadline
+
 func TestPingerAdvanceDeadline(t *testing.T) {
 	done := make(chan struct{})
 	listener, err := net.Listen("tcp", "127.0.0.1:")
