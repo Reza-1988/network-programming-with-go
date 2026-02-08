@@ -14,6 +14,21 @@ import (
 // whereas the previous examples showed only a single side using a Pinger.
 // When either node receives data on the network connection, its ping timer should reset to stop the delivery of an unnecessary ping.
 // Listing 3-12 is a new file named ping_test.go that shows how you can use incoming messages to advance the deadline.
+//
+// - You start a listener that accepts a connection, spins off a Pinger set to ping every second, and sets the initial deadline to five seconds (1).
+// 	- From a client’s perspective, it receives four pings followed by an io.EOF when the server reaches its deadline and terminates its side of the connection.
+//	- However, a client can advance the server’s deadline by sending the server data (5) before the server reaches its deadline.
+// - If the server reads data from its connection, it can be confident the network connection is still good.
+// 	- Therefore, it can inform the Pinger to reset (2) its timer and push the connection’s deadline forward (3).
+//	- To preempt the termination of the socket, the client listens for four ping messages (4) from the server before sending an emphatic pong message (5).
+// 	- This should buy the client five more seconds until the server reaches its deadline.
+//	- The client reads four more pings (6) and then waits for the inevitable.
+// 	- You check that a total of nine seconds (7) has elapsed by the time the server terminates the connection,
+//	- indicating the client’s pong successfully triggered the reset of the ping timer.
+// - In practice, this method of advancing the ping timer cuts down on the consumption of bandwidth by unnecessary pings.
+// 	- There is rarely a need to challenge the remote side of a network connection if you just received data on the connection.
+//	- The strings "ping" and "pong" are arbitrary. You could use smaller payloads, such as a single byte, for the same purpose,
+//	- provided both sides of the network connection agree upon what values constitute a ping and a pong.
 
 // Listing 3-12: Receiving data advances the deadline
 // This test is intended to prove very simply:
@@ -65,7 +80,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 
 		// A-5) Set an initial deadline for the connection
 		//	- That means: From this moment on, if no successful Read/Write occurs within 5 seconds, the operations will timeout.
-		err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+		err = conn.SetDeadline(time.Now().Add(5 * time.Second)) // (1)
 		if err != nil {
 			t.Error(err)
 			return
@@ -103,12 +118,12 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 			// 	- Why is it used?
 			// 		- Because times fluctuate to the exact millisecond, but the author wants the logs to be “seconds” and stable.
 
-			resetTimer <- 0
+			resetTimer <- 0 // (2)
 
 			// When the server receives a data (for example PONG!!!) it writes this line:
 			// 	- SetDeadline(now + 5s)
 			//	- This means that the deadline will be set back 5 seconds from now.
-			err = conn.SetDeadline(time.Now().Add(5 * time.Second))
+			err = conn.SetDeadline(time.Now().Add(5 * time.Second)) // (3)
 			if err != nil {
 				t.Error(err)
 				return
@@ -130,7 +145,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	// 	- What is the goal?
 	//		- It wants the client to do something for about 4 seconds and then send a pong to push the deadline to 9 seconds.
 	buf := make([]byte, 1024)
-	for i := 0; i < 4; i++ { // read up to four pings
+	for i := 0; i < 4; i++ { // read up to four pings (4)
 		n, err := conn.Read(buf)
 		if err != nil {
 			t.Fatal(err)
@@ -144,7 +159,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	// 	- And as before:
 	// 		- Resets the ping timer
 	// 		- Advances the deadline by 5 seconds
-	_, err = conn.Write([]byte("PONG!!!")) // should reset the ping timer
+	_, err = conn.Write([]byte("PONG!!!")) // should reset the ping timer (5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +171,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	// 		- Because after receiving PONG, the server goes back to Read and waits for the next data from the client.
 	// 		- But the client doesn't send anything anymore.
 	// 		- So 5 seconds after PONG, the server's deadline arrives → the Read server gets an error → the server goroutine returns → the connection is closed → the client gets EOF.
-	for i := 0; i < 4; i++ { // read up to four more pings
+	for i := 0; i < 4; i++ { // read up to four more pings (6)
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err != io.EOF {
@@ -181,7 +196,7 @@ func TestPingerAdvanceDeadline(t *testing.T) {
 	<-done // Wait for the server to actually finish
 	end := time.Since(begin).Truncate(time.Second)
 	t.Logf("[%s] done", end)
-	if end != 9*time.Second {
+	if end != 9*time.Second { // (7)
 		t.Fatalf("expected EOF at 9 seconds; actual %s", end)
 	}
 }
