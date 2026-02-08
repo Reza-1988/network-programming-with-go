@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// --- STEP 8 ---
+// --- STEP 9 ---
 // Listing 3-11 illustrates how to use the Pinger function introduced in Listing 3-10 by giving it a writer and running it in a goroutine.
 // You can then read pings from the reader at the expected intervals and reset the ping timer with different intervals.
 // 	- In this example, you create a buffered channel (1) that you’ll use to signal a reset of the Pinger’s timer.
@@ -117,11 +117,11 @@ func ExamplePinger() {
 	// 			- If d >= 0 → new interval is sent
 	// 			- If d < 0 → does nothing (does not reset)
 	// 	- So:
-	// 		- 0 → reset to 0 (this is logically strange; because in Pinger if interval <=0 it goes to default 30s)
+	// 		- 0 → reset to 0 (0 means: Don't change the interval, but restart the timer from now on)
 	// 		- 200 → reset to 200ms
 	// 		- 300 → reset to 300ms
 	// 		- 0 → <=0 again
-	// 		- -1 → ignore
+	// 		- -1 → ignore (-1 means: Don't say anything to the pinger; just listen to see when the next ping comes. This means the pinger timer continues as is.)
 	// 		- -1 → ignore
 	// 		- -1 → ignore
 	// 		- Author's goal:
