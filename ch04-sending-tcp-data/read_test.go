@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// --- STEP1 ---
 // ## Reading Data into a Fixed Buffer
 // TCP connections in Go implement the `io.Reader` interface, which allows you to read data from the network connection.
 //   - To read data from a network connection, you need to provide a buffer for the network connection’s Read method to fill.
