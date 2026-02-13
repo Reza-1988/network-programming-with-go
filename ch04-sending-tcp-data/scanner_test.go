@@ -12,10 +12,12 @@ import (
 // - Reading data from a network connection by using the method I just showed means your code needs to make sense of the data it receives.
 //   - Since TCP is a stream-oriented protocol, a client can receive a stream of bytes across many packets.
 //   - Unlike sentences, binary data doesn’t include inherent punctuation that tells you where one message starts and stops.
+//
 // - If, for example, your code is reading a series of email messages from a server,
 //   - your code will have to inspect each byte for delimiters indicating the boundaries of each message in the stream of bytes.
 //   - Alternatively, your client may have an established protocol with the server whereby the server sends a fixed number of bytes to indicate the payload size the server will send next.
 //   - Your code can then use this size to create an appropriate buffer for the payload.
+//
 // - However, if you choose to use a delimiter to indicate the end of one message and the beginning of another,
 //   - writing code to handle edge cases isn’t so simple.
 //   - For example, you may read 1KB of data from a single Read on the network connection and find that it contains two delimiters.
