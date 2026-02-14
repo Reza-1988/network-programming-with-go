@@ -123,3 +123,14 @@ func TestScanner(t *testing.T) {
 	// 	- It's just for logging into the test to see what happened.
 	t.Logf("Scanned words: %#v", words) // (4)
 }
+
+// 	- Since you know you’re reading a string from the server, you start by creating a `bufio.Scanner` that reads from the network connection (1).
+// 		- By default, the scanner will split data read from the network connection when it encounters a newline character (\n) in the stream of data.
+//		- Instead, you elect to have the scanner delimit the input at the end of each word by using `bufio.ScanWords`,
+//		- which will split the data when it encounters a word border, such as whitespace or sentence-terminating punctuation.
+// 	- You keep reading data from the scanner as long as it tells you it’s read data from the connection (2).
+//		- Every call to Scan can result in multiple calls to the network connection’s Read method until the scanner finds its delimiter or reads an error from the connection.
+// 		- It hides the complexity of searching for a delimiter across one or more reads from the network connection and returning the resulting messages.
+// 	- The call to the scanner’s Text method returns the chunk of data as a string—a single word and adjacent punctuation, in this case—that it just read from the network connection (3).
+//		- The code continues to iterate around the for loop until the scanner receives an `io.EOF` or other error from the network connection.
+//		- If it’s the latter, the scanner’s `Err` method will return a non-nil error. You can view the scanned words (4) by adding the `-v` flag to the go test command.
