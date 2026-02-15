@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// --- STEP2 ---
+// --- STEP 2 ---
 // ## Delimited Reading by Using a Scanner
 // - Reading data from a network connection by using the method I just showed means your code needs to make sense of the data it receives.
 //   - Since TCP is a stream-oriented protocol, a client can receive a stream of bytes across many packets.
