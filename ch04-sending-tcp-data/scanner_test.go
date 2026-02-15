@@ -134,3 +134,13 @@ func TestScanner(t *testing.T) {
 // 	- The call to the scanner’s Text method returns the chunk of data as a string—a single word and adjacent punctuation, in this case—that it just read from the network connection (3).
 //		- The code continues to iterate around the for loop until the scanner receives an `io.EOF` or other error from the network connection.
 //		- If it’s the latter, the scanner’s `Err` method will return a non-nil error. You can view the scanned words (4) by adding the `-v` flag to the go test command.
+
+// Big different from Step 1
+// In the previous example you used `conn.Read(buf)` directly, so you created a buffer (container) to read from.
+// Here you don't read directly; you use `bufio.Scanner`. The scanner itself does the following behind the scenes:
+// 	- It has an internal buffer
+// 	- It performs several reads
+// 	- It collects the data
+// 	- Until a separator (e.g. a word boundary) is found
+// 	- Then it gives you the result with `scanner.Text()`
+// 	- So you didn't "create" the buffer because the Scanner manages the buffer itself.
