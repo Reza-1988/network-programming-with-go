@@ -9,31 +9,32 @@ import (
 
 // --- STEP 1 ---
 // ## Reading Data into a Fixed Buffer
-// TCP connections in Go implement the `io.Reader` interface, which allows you to read data from the network connection.
-//   - To read data from a network connection, you need to provide a buffer for the network connection’s Read method to fill.
-//   - The Read method will populate the buffer to its capacity if there is enough data in the connection’s receive buffer.
-//   - If there are fewer bytes in the receive buffer than the capacity of the buffer you provide,
-//   - Read will populate the given buffer with the data and return instead of waiting for more data to arrive.
-//   - In other words, Read is not guaranteed to fill your buffer to capacity before it returns.
-//   - Listing 4-1 demonstrates the process of reading data from a network connection into a byte slice.
-//   - You need something for the client to read, so you create a 16MB payload of random data (1) —more data than the client can read
-//   - in its chosen buffer size of 512KB (3) so that it will make at least a few iterations around its for loop.
-//   - It’s perfectly acceptable to use a larger buffer or a smaller payload and read the entirety of the payload in a single call to Read.
-//   - Go correctly processes the data regardless of the payload and receive buffer sizes.
-//   - You then spin up the listener and create a goroutine to listen for incoming connections.
-//   - Once accepted, the server writes the entire payload to the network connection (2).
-//   - The client then reads up to the first 512KB from the connection (4) before continuing around the loop.
-//   - The client continues to read up to 512KB at a time until either an error occurs or the client reads the entire 16MB payload.
-
+/*
+- TCP connections in Go implement the `io.Reader` interface, which allows you to read data from the network connection.
+   - To read data from a network connection, you need to provide a buffer for the network connection’s Read method to fill.
+- The Read method will populate the buffer to its capacity if there is enough data in the connection’s receive buffer.
+   - If there are fewer bytes in the receive buffer than the capacity of the buffer you provide,
+   - Read will populate the given buffer with the data and return instead of waiting for more data to arrive.
+   - In other words, Read is not guaranteed to fill your buffer to capacity before it returns.
+   - Listing 4-1 demonstrates the process of reading data from a network connection into a byte slice.
+- You need something for the client to read, so you create a 16MB payload of random data (1) —more data than the client can read
+	- in its chosen buffer size of 512KB (3) so that it will make at least a few iterations around its for loop.
+  	- It’s perfectly acceptable to use a larger buffer or a smaller payload and read the entirety of the payload in a single call to Read.
+	- Go correctly processes the data regardless of the payload and receive buffer sizes.
+- You then spin up the listener and create a goroutine to listen for incoming connections.
+   - Once accepted, the server writes the entire payload to the network connection (2).
+   - The client then reads up to the first 512KB from the connection (4) before continuing around the loop.
+   - The client continues to read up to 512KB at a time until either an error occurs or the client reads the entire 16MB payload.
+*/
 // Listing 4-1: Receiving data over a network connection
 // This test aims to show with a real example that:
 //   - The server sends a very large data (16MB)
 //   - The client reads it in pieces with a smaller buffer (512KB)
 //   - And each time you read it, you may return any arbitrary value (up to the buffer limit), not necessarily filling the buffer.
 //   - Test Story:
-//   - We create a local “server” (listener)
-//   - A server goroutine sends 16MB of random data when the client connects
-//   - The client connects and reads into a 512KB buffer with Read until the connection is closed.
+//   	- We create a local “server” (listener)
+//   	- A server goroutine sends 16MB of random data when the client connects
+//   	- The client connects and reads into a 512KB buffer with Read until the connection is closed.
 func TestReadIntoBuffer(t *testing.T) {
 	// 1) Creating a large payload (16MB)
 	// 	- `1<<24` means 2 to the power of 24 → 16,777,216 bytes ≈ 16MB
