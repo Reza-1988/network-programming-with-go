@@ -20,7 +20,6 @@ import (
 	- and constitute the same type on the remote node from the series of bytes.
 	- Listing 4-4 defines the types that our TLV encoding protocol will accept.
 */
-// Listing 4-4: The message struct implements a simple protocol
 /*
 - What does TLV mean?
 	- TLV stands for:
@@ -45,15 +44,32 @@ import (
    		- So the message structure is:
 			- [Type:1 byte][Length:4 bytes][Value:Length bytes]
 */
+
+// Listing 4-4: The message struct implements a simple protocol
+/*
+- You start by creating constants to represent each type you will define.
+	- In this example, you will create a BinaryType (1) and a StringType (2).
+	- After digesting the implementation details of each type, you should be able to create types that fit your needs.
+	- For security purposes that we’ll discuss in just a moment, you must define a maximum payload size (3).
+- You also define an interface named Payload (4) that describes the methods each type must implement.
+	- Each type must have the following methods: Bytes, String, ReadFrom, and WriteTo.
+		- The io.ReaderFrom and io.WriterTo interfaces allow your types to read from readers and write to writers, respectively.
+		- You have some flexibility in this regard.
+		- You could just as easily make the Payload implement the `encoding.BinaryMarshaler` interface to marshal itself to a byte slice and
+		- the `encoding.BinaryUnmarshaler` interface to unmarshal itself from a byte slice.
+		- But the byte slice is one level removed from the network connection, so you’ll keep the Payload interface as is.
+		- Besides, you’ll use the binary encoding interfaces in the next chapter.
+- You now have the foundation built to create TLV-based types.
+*/
 const (
-	BinaryType uint8 = iota + 1 // (1)
-	StringType
-	MaxPayloadSize uint32 = 10 << 20 // 10 MB
+	BinaryType     uint8  = iota + 1 // (1)
+	StringType                       // (2)
+	MaxPayloadSize uint32 = 10 << 20 // 10 MB (3)
 )
 
 var ErrMaxPayloadSize = errors.New("maximum payload size exceeded")
 
-type Payload interface {
+type Payload interface { //(4)
 	fmt.Stringer
 	io.ReaderFrom
 	io.WriterTo
