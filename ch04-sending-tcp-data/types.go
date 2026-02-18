@@ -62,7 +62,7 @@ import (
 - You now have the foundation built to create TLV-based types.
 */
 /*
-1) What are these consts for?
+1) What are these `consts` for?
 	- (1) and (2) Defining message types (Type)
 		- In TLV, Type is usually a small number (here 1 byte = uint8).
   			- BinaryType means the message type is “binary” (e.g. file, image, any raw data)
@@ -140,10 +140,58 @@ type Payload interface { //(4)
 }
 
 // Listing 4-5: Creating the Binary type
+/*
+- The Binary type (1) is a byte slice; therefore, its Bytes method (2) simply returns itself.
+- Its String method (3) casts itself as a string before returning.
+- The WriteTo method accepts an `io.Writer` and returns the number of bytes written to the writer and an error interface (4).
+	- The WriteTo method first writes the 1-byte type to the writer (5).
+	- It then writes the 4-byte length of the Binary to the writer (6).
+	- Finally, it writes the Binary value itself (7).
+*/
+
+// This code is creating a type of TLV message called Binary, which is "binary data" (i.e. a []byte),
+// and then learning how to write itself to the network (or any Writer) as a TLV.
+/*
+0) What does the TLV look like here?
+	- According to the book, we have a 5-byte header:
+		- 1 byte: Type
+		- 4 bytes: Length
+		- Then: Value (the payload itself)
+	- So the WriteTo output should look like this:
+		- [Type (1 byte)] [Length (4 bytes)] [Value (len bytes)]
+*/
+
+// 1) Definition of Binary type
+// 		- Binary is a new type
+// 		- But it is actually the same as []byte (a slice of bytes)
+// 		- So when you write: `m := Binary([]byte{1,2,3})`
+// 			- You have a binary payload.
+
 type Binary []byte // (1)
 
-func (m Binary) Bytes() []byte  { return m }         // (2)
+// 2) `Bytes()` method
+// 		- Because Binary itself is `[]byte`
+// 		- it doesn't need to do any special conversion
+// 		- it just returns itself.
+
+func (m Binary) Bytes() []byte { return m } // (2)
+
+// 3) `String()` method
+// 		- This method is only useful for printing/logging.
+// 			- `string(m)` means "interpret these bytes as text".
+// 				- If the text is really UTF-8, it will read correctly
+// 				- If the data is really binary (image/file), the printout may look weird/unreadable.
+
 func (m Binary) String() string { return string(m) } // (3)
+
+// 4) `WriteTo()` method
+//		- This method says:
+//			- I (payload) want to write myself to a writer.
+//			- Writer can be:
+// 				- `net.Conn` or `bytes.Buffer` or file or anything that has `Write([]byte)`.
+// 		- Output:
+// 			- `int64` = number of bytes written
+// 			- `error` = if there was a problem
 
 func (m Binary) WriteTo(w io.Writer) (int64, error) { // (4)
 	err := binary.Write(w, binary.BigEndian, BinaryType) // 1-byte type (5)
