@@ -61,13 +61,76 @@ import (
 		- Besides, you’ll use the binary encoding interfaces in the next chapter.
 - You now have the foundation built to create TLV-based types.
 */
+/*
+1) What are these consts for?
+	- (1) and (2) Defining message types (Type)
+		- In TLV, Type is usually a small number (here 1 byte = uint8).
+  			- BinaryType means the message type is “binary” (e.g. file, image, any raw data)
+   			- StringType means the message type is “text”
+		- iota is an automatic counter in Go.
+			- iota starts at 0.
+			- Since we have + 1, then:
+				- BinaryType becomes 1
+				- StringType becomes 2
+	- Result:
+		- BinaryType = 1
+		- StringType = 2
+	- This is exactly the same as T in TLV:
+		- That is, when you send the message, you write Type=1 or Type=2 in the header so that the other party knows how to interpret the payload.
+	- (3) Why do we have MaxPayloadSize?
+		- This means we limit the maximum payload size to 10MB.
+			- 10 << 20 means: 10 times 2^20
+				- That is 10 * 1,048,576 ≈ 10,485,760 bytes ≈ 10MB
+		- Why is this important?
+			- For security and problem prevention:
+				- If the other party (or attacker) says: "Message length = 4GB"
+				- And you try to create a 4GB buffer → RAM will burst and the application will crash (DoS)
+			- Then this value is a "safety ceiling".
+	- << means Left Shift. Very simple:
+		- x << n means you shift the number x, n bits to the left
+		- The result is usually:
+			- x * (2^n)
+*/
+//
 const (
 	BinaryType     uint8  = iota + 1 // (1)
 	StringType                       // (2)
 	MaxPayloadSize uint32 = 10 << 20 // 10 MB (3)
 )
 
+// 2) What is this error for?
+// 	- If the payload length is greater than MaxPayloadSize , we return this error. In simple terms:
+// 		- The message you are sending/receiving is too large, I will not accept it.
+
 var ErrMaxPayloadSize = errors.New("maximum payload size exceeded")
+
+/*
+3) What does Payload interface mean?
+	- Here we define a “contract” for each payload type (such as String or Binary).
+	- That is, anything that wants to be a payload must have these capabilities:
+	- 3.1) What does fmt.Stringer mean?
+		- This interface means it must have the following method:
+			- `String() string`
+			- So the payload should be able to convert itself to a string for printing/logging/debugging.
+			- For example, if the payload is text, String() will return that text.
+	- 3.2) What does io.ReaderFrom mean?
+		- This means that the payload must be able to read itself from a Reader.
+		- Method: `ReadFrom(r io.Reader) (n int64, err error)` That is:
+			- You give the payload an `r` (can be `conn`)
+			- The payload reads itself and stores it inside itself
+			- `n` says how many bytes were read
+		- Note: net.Conn itself is an io.Reader, so it can read the payload directly from the network.
+	- 3.3) What does `io.WriterTo` mean?
+		- This means that the payload must be able to write itself to a Writer.
+		- Method: `WriteTo(w io.Writer) (n int64, err error)` Meaning:
+			- The payload writes itself to `w`
+			- `w` can be the same as `conn` (since `net.Conn` is also a writer)
+	- 3.4) What does `Bytes() []byte` mean?
+		- They added this method themselves (it is not part of io).
+		- That is, the payload should be able to return its own byte version:
+			- For cases where you want to have raw bytes
+			- For example, for hashing, storing, or testing
+*/
 
 type Payload interface { //(4)
 	fmt.Stringer
