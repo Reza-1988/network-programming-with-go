@@ -258,30 +258,92 @@ func (m Binary) WriteTo(w io.Writer) (int64, error) { // (4)
 //		- This is because the 4-byte integer you use to designate the payload size has a maximum value of 4,294,967,295, indicating a payload of over 4GB.
 //		- With such a large payload size, it would be easy for a malicious actor to perform a denial-of-service attack that exhausts all the available random access memory (RAM) on your computer.
 //		- Keeping the maximum payload size reasonable makes memory exhaustion attacks harder to execute.
+//
+// This `ReadFrom` is exactly the opposite of WriteTo: it reads a message TLV from the network/Reader and puts it into Binary.
+//	- What is the general purpose of this function?
+// 		- This message on the wire (network) looks like this:
+// 			- Type → 1 byte
+// 			- Length → 4 bytes
+// 			- Value / Payload → Length bytes
+//  	- `ReadFrom` wants to read these three pieces from `r` and finally fill `m` (the same Binary).
+// 	- Why is receiver a pointer here? func (m *Binary)
+//		- Because we are going to create and fill the value with `m` inside the function.
+// 		- If there is no pointer, the changes are made to a copy and are not visible outside the function.
+// 		- So *Binary means “change the actual Binary itself”.
 
 func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
+
+	// 1) Read Type (1 byte)
+	// 	- We create a `typ` variable for the message type
+	// 	- `binary.Read` reads from r and puts it into typ
+	// 	- Because typ is of type uint8 → exactly 1 byte is read from the stream.
+	// 	- `var n int64 = 1` -> This means we have read 1 byte so far.
 	var typ uint8
 	err := binary.Read(r, binary.BigEndian, &typ) // 1-byte type
 	if err != nil {
 		return 0, err
 	}
 	var n int64 = 1
+
+	// 2) Check if the type is correct or not
+	//	- Here it says:
+	// 		- If the type you read was not `BinaryType`,
+	// 		- That means this message is not of type Binary
+	// 		- Then this function has no right to continue and will give an error.
+	// 		- It's like the package says “String” but you said I only open “Binary” packages.
+
 	if typ != BinaryType {
 		return n, errors.New("invalid Binary")
 	}
+
+	// 3) Read Length (4 bytes)
+	// 	- Now it reads the next 4 bytes
+	// 	- and puts them into size
+	// 	- Because size is of type uint32 → exactly 4 bytes are read.
 
 	var size uint32
 	err = binary.Read(r, binary.BigEndian, &size) // 4-byte size
 	if err != nil {
 		return n, err
 	}
+
+	// So far:
+	//	- 1 byte type
+	// 	- 4 bytes size
+	//	- Total n = 5
+
 	n += 4
+
+	// 4) Security check: Size should not be too large
+	// 	- This is very important:
+	// 		- Because uint32 can give very large numbers (up to about 4 billion)
+	// 		- If the attacker says size = 4GB
+	// 		- and you try to make([]byte, size) → you empty RAM and the program crashes (DoS)
+	// 		- Then before creating the buffer, it checks that it does not exceed the allowed limit (for example 10MB).
+
 	if size > MaxPayloadSize {
 		return n, ErrMaxPayloadSize
 	}
 
+	// 5) Create a buffer exactly the size of size
+	// 	- This means:
+	// 		- Create a slice inside `m` with length `size` bytes
+	// 		- Since `m` is a pointer, we need to change the actual value with `*m`.
+	//		- For example, if size=3:
+	// 			- *m becomes a 3-bit slice like [0 0 0]
+
 	*m = make([]byte, size)
+
+	// 6) Read the payload and put it into the slice
+	// 	- Now it should read the actual size of bytes from the network and put it into `*m`
+	// 	- o means:
+	// 		- How many bytes were actually read
+
 	o, err := r.Read(*m) // payload
+
+	// And finally:
+	// 	- `n` (header = 5 bytes) +
+	// 	- `o` (payload) that we read
 
 	return n + int64(o), err
 }

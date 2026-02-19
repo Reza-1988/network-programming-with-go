@@ -101,9 +101,10 @@ func TestScanner(t *testing.T) {
 
 	// 6) Checking Scanner Errors
 	// 	- When the loop ends, we don't know why:
-	// 	- Did the normal data run out?
-	// 	- Or did an error occur?
-	// 	- `scanner.Err()` returns if there was an error, otherwise nil.
+	// 		- Did the normal data run out?
+	// 		- Or did an error occur?
+	// 		- `scanner.Err()` returns if there was an error, otherwise nil.
+
 	err = scanner.Err()
 	if err != nil {
 		t.Error(err)
@@ -111,17 +112,20 @@ func TestScanner(t *testing.T) {
 
 	// 7) Comparison with what we expect
 	// 	- This is the list of words we expect Scanner to produce.
+
 	expected := []string{"The", "bigger", "the", "interface,", "the",
 		"weaker", "the", "abstraction."}
 
 	// 	- `DeepEqual` checks whether two slices are exactly the same in terms of content.
 	// 	- If they are not the same, it means the Scanner did not read them correctly or the segmentation was different → the test fails.
+
 	if !reflect.DeepEqual(words, expected) {
 		t.Fatal("inaccurate scanned word list")
 	}
 
 	// 8) Print the result to see
 	// 	- It's just for logging into the test to see what happened.
+
 	t.Logf("Scanned words: %#v", words) // (4)
 }
 
