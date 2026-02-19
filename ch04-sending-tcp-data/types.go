@@ -192,13 +192,44 @@ func (m Binary) String() string { return string(m) } // (3)
 // 		- Output:
 // 			- `int64` = number of bytes written
 // 			- `error` = if there was a problem
+//
+// The Story of WriteTo (Step-by-Step)
+// 		- Let's say `m` is our binary data (a []byte) that we want to send over the network.
+// 		- What is the purpose of WriteTo?
+// 			- It wants to write this to w:
+// 				1.  Message type (Type) → 1 byte
+// 				2. Message length (Length) → 4 bytes
+// 				3. Data itself (Value / payload) → len(m) bytes
+// 			- That is, like a postal envelope:
+// 				- First you write on the envelope "What type of packet is this?"
+// 				- Then you write "What is its size?"
+// 				- Then you put the packet itself inside the envelope and send it
 
 func (m Binary) WriteTo(w io.Writer) (int64, error) { // (4)
+
+	// 4.1) Write Type (1 byte)
+	// 		- What does it do here?
+	// 			- `BinaryType` is a uint8 number (e.g. 1)
+	// 			- `binary.Write` writes it to the writer as raw bytes.
+	// 			- `binary.BigEndian` means that if it was multi-byte, the order is BigEndian (it doesn't matter for 1 byte, but it matters for length).
+	// 		- Next:
+	// 			- Since we wrote exactly 1 byte here, we set `n = 1`.
+
 	err := binary.Write(w, binary.BigEndian, BinaryType) // 1-byte type (5)
 	if err != nil {
 		return 0, err
 	}
 	var n int64 = 1
+
+	// 4.2) Write Length (4 bytes)
+	// 		- `len(m)` means the number of bytes of payload
+	// 		- `uint32(len(m))` means we fit the length into 4 bytes
+	// 		- `binary.Write` writes this length into 4 bytes.
+	// 		- So far:
+	// 			- 1 byte type
+	// 			- 4 bytes length
+	//			- Total 5 bytes header
+	// 		- That's why we do n += 4 → n becomes 5.
 
 	err = binary.Write(w, binary.BigEndian, uint32(len(m))) // 4-byte size (6)
 	if err != nil {
@@ -206,12 +237,27 @@ func (m Binary) WriteTo(w io.Writer) (int64, error) { // (4)
 	}
 	n += 4
 
-	o, err := w.Write(m) // payload (7)
+	// 4.3) Writing your own payload (Value)
+	// 		- `w.Write(m)` sends the bytes itself.
+	// 		- `o` is the number of bytes actually written.
+	// 			- Usually equal to `len(m)`, but theoretically it can be less (some writers have partial writes).
+	// 		- Finally:
+	// 			- Total number of bytes written = n (header) + o (payload)
+	// 			- And also returns err.
 
+	o, err := w.Write(m) // payload (7)
 	return n + int64(o), err
 }
 
 // Listing 4-6: Completing the Binary type’s implementation ( types go)
+// 	- The `ReadFrom `method reads (1) 1 byte from the reader into the typ variable.
+// 	- It next verifies (2) that the type is BinaryType before proceeding.
+// 	- Then it reads (3) the next 4 bytes into the size variable, which sizes the new Binary byte slice (5).
+//	- Finally, it populates the Binary byte slice (6).
+//	- Notice that you enforce a maximum payload size 4.
+//		- This is because the 4-byte integer you use to designate the payload size has a maximum value of 4,294,967,295, indicating a payload of over 4GB.
+//		- With such a large payload size, it would be easy for a malicious actor to perform a denial-of-service attack that exhausts all the available random access memory (RAM) on your computer.
+//		- Keeping the maximum payload size reasonable makes memory exhaustion attacks harder to execute.
 
 func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
 	var typ uint8
