@@ -347,3 +347,30 @@ func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
 
 	return n + int64(o), err
 }
+
+// Listing 4-7  Creating the String type
+//	- Introduces the String type, which, like Binary, implements the Payload interface.
+
+type String string
+
+func (m String) Bytes() []byte  { return []byte(m) } // (1)
+func (m String) String() string { return string(m) } // (2)
+
+func (m String) WriteTo(w io.Writer) (int64, error) { // (3)
+	err := binary.Write(w, binary.BigEndian, StringType) // 1-byte type (4)
+	if err != nil {
+		return 0, nil
+	}
+	var n int64 = 1
+
+	err = binary.Write(w, binary.BigEndian, uint32(len(m))) // 4-byte size
+	if err != nil {
+		return n, err
+	}
+
+	n += 4
+
+	o, err := w.Write([]byte(m)) // payload (5)
+
+	return n + int64(o), err
+}
