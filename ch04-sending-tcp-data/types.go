@@ -350,6 +350,10 @@ func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
 
 // Listing 4-7  Creating the String type
 //	- Introduces the String type, which, like Binary, implements the Payload interface.
+// 	- The `String` implementation’s `Bytes` method (1) casts the String to a byte slice.
+//	- The `String` method (2) casts the String type to its base type, string.
+//	- The String type’s `WriteTo` method (3) is like Binary’s `WriteTo` method except the first byte written (4) is the StringType
+//		- and it casts the String to a byte slice before writing it to the writer (5).
 
 type String string
 
