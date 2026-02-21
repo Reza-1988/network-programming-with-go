@@ -380,6 +380,10 @@ func (m String) WriteTo(w io.Writer) (int64, error) { // (3)
 }
 
 // Listing 4-8: Completing the String type’s implementation
+// 	- Here, too, String’s `ReadFrom` method is like Binary’s `ReadFrom` method, with two exceptions.
+//	- First, the method compares the typ variable against the StringType (1) before proceeding.
+// 	- Second, the method casts the value read from the reader to a String (2).
+// 	- All that’s left to implement is a way to read arbitrary data from a network connection and use it to constitute one of our two types. For that, we turn to Listing 4-9.
 
 func (m *String) ReadFrom(r io.Reader) (int64, error) {
 	var typ uint8
@@ -388,7 +392,7 @@ func (m *String) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 	var n int64 = 1
-	if typ != StringType {
+	if typ != StringType { // (1)
 		return 0, errors.New("invalid String")
 	}
 
@@ -404,6 +408,6 @@ func (m *String) ReadFrom(r io.Reader) (int64, error) {
 	if err != nil {
 		return n, err
 	}
-	*m = String(buf)
-	return n + int64(0), nil
+	*m = String(buf) // (2)
+	return n + int64(o), nil
 }
