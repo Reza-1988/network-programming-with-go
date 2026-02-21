@@ -378,3 +378,32 @@ func (m String) WriteTo(w io.Writer) (int64, error) { // (3)
 
 	return n + int64(o), err
 }
+
+// Listing 4-8: Completing the String type’s implementation
+
+func (m *String) ReadFrom(r io.Reader) (int64, error) {
+	var typ uint8
+	err := binary.Read(r, binary.BigEndian, &typ) // 1-byte type
+	if err != nil {
+		return 0, err
+	}
+	var n int64 = 1
+	if typ != StringType {
+		return 0, errors.New("invalid String")
+	}
+
+	var size uint32
+	err = binary.Read(r, binary.BigEndian, &size) // 4-byte size
+	if err != nil {
+		return 0, err
+	}
+	n += 4
+
+	buf := make([]byte, size)
+	o, err := r.Read(buf) // payload
+	if err != nil {
+		return n, err
+	}
+	*m = String(buf)
+	return n + int64(0), nil
+}
