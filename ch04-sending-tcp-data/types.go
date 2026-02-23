@@ -1,6 +1,7 @@
 package ch04
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -410,4 +411,32 @@ func (m *String) ReadFrom(r io.Reader) (int64, error) {
 	}
 	*m = String(buf) // (2)
 	return n + int64(o), nil
+}
+
+// Listing 4-9: Decoding bytes from a reader into a Binary or String type
+
+func decode(r io.Reader) (Payload, error) {
+	var typ uint8
+	err := binary.Read(r, binary.BigEndian, &typ)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload Payload
+
+	switch typ {
+	case BinaryType:
+		payload = new(Binary)
+	case StringType:
+		payload = new(String)
+	default:
+		return nil, errors.New("unknown type")
+	}
+
+	_, err = payload.ReadFrom(
+		io.MultiReader(bytes.NewReader([]byte{typ}), r))
+	if err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
