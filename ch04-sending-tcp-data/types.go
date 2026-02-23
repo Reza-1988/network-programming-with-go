@@ -414,17 +414,31 @@ func (m *String) ReadFrom(r io.Reader) (int64, error) {
 }
 
 // Listing 4-9: Decoding bytes from a reader into a Binary or String type
+// - The decode function (1) accepts an `io.Reader` and returns a Payload interface and an error interface.
+//		- If decode cannot decode the bytes read from the reader into a Binary or String type, it will return an error along with a nil Payload.
+// - You must first read a byte from the reader (2) to determine the type and create a payload variable (3) to hold the decoded type.
+//  	- If the type you read from the reader is an expected type constant (4), you assign the corresponding type to the payload variable.
+// - You now have enough information to finish decoding the binary data from the reader into the payload variable by using its ReadFrom method.
+//		- But you have a problem here. You cannot simply pass the reader to the `ReadFrom` method.
+//		- You’ve already read a byte from it corresponding to the type, yet the `ReadFrom` method expects the first byte it reads to be the type as well.
+//		- Thankfully, the `io` package has a helpful function you can use: `MultiReader`.
+//		- We cover `io.MultiReader` in more detail later in this chapter, but here you use it to concatenate the byte you’ve already read with the reader (5).
+//		- From the ReadFrom method’s perspective, it will read the bytes in the sequence it expects.
+//	- Although the use of `io.MultiReader` shows you how to inject bytes back into a reader, it isn’t optimal in this use case.
+//		- The proper fix is to remove each type’s need to read the first byte in its `ReadFrom` method.
+//		- Then, the `ReadFrom` method would read only the 4-byte size and the payload, eliminating the need to inject the type byte back into the reader before passing it on to ReadFrom.
+//		- As an exercise, I recommend you refactor the code to eliminate the need for io.MultiReader.
 
-func decode(r io.Reader) (Payload, error) {
+func decode(r io.Reader) (Payload, error) { // (1)
 	var typ uint8
-	err := binary.Read(r, binary.BigEndian, &typ)
+	err := binary.Read(r, binary.BigEndian, &typ) // (2)
 	if err != nil {
 		return nil, err
 	}
 
-	var payload Payload
+	var payload Payload // (3)
 
-	switch typ {
+	switch typ { // (4)
 	case BinaryType:
 		payload = new(Binary)
 	case StringType:
@@ -434,7 +448,7 @@ func decode(r io.Reader) (Payload, error) {
 	}
 
 	_, err = payload.ReadFrom(
-		io.MultiReader(bytes.NewReader([]byte{typ}), r))
+		io.MultiReader(bytes.NewReader([]byte{typ}), r)) // (5)
 	if err != nil {
 		return nil, err
 	}
