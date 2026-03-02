@@ -429,31 +429,68 @@ func (m String) WriteTo(w io.Writer) (int64, error) { // (3)
 // 	- Second, the method casts the value read from the reader to a String (2).
 // 	- All that’s left to implement is a way to read arbitrary data from a network connection and use it to constitute one of our two types. For that, we turn to Listing 4-9.
 
+// This `ReadFrom` works exactly like `Binary.ReadFrom`, with only two main differences:
+// 	- The message type must be `StringType`
+// 	- After reading the payload, it converts it to a String.
+// Why is receiver a pointer here?
+//	- Because we are going to fill the value with `m` inside this function. If there is no pointer, the changes will not be visible outside.
+
 func (m *String) ReadFrom(r io.Reader) (int64, error) {
+
+	// 1) Read Type (1 byte)
+	// 	- Reads exactly 1 byte from `r` and puts it into typ
+	// 	- This byte tells what type the message is (Binary or String)
+
 	var typ uint8
 	err := binary.Read(r, binary.BigEndian, &typ) // 1-byte type
 	if err != nil {
 		return 0, err
 	}
-	var n int64 = 1
+	var n int64 = 1 // That means we have read 1 byte so far.
+
+	// 2) Checking that this message is actually a String
+	// 	- If type is not equal to StringType, then this data is not related to String.
+	// 	- So it throws an error and does not continue.
+
 	if typ != StringType { // (1)
 		return 0, errors.New("invalid String")
 	}
+
+	// 3) Read Length (4 bytes)
+	// 	- Now it reads the next 4 bytes
+	// 	- This number specifies the length of the payload
 
 	var size uint32
 	err = binary.Read(r, binary.BigEndian, &size) // 4-byte size
 	if err != nil {
 		return 0, err
 	}
-	n += 4
+	n += 4 // So far, the entire header has been read: 1 + 4 = 5 bytes.
+
+	// 4) Create a buffer the size of the payload and read the payload
+	// 	- Creates a slice of size
+	// 	- Reads payload into it
+	// 	- `o` means how many bytes were actually read
 
 	buf := make([]byte, size)
 	o, err := r.Read(buf) // payload
 	if err != nil {
 		return n, err
 	}
-	*m = String(buf) // (2)
-	return n + int64(o), nil
+
+	// 5) Convert payload to String and store in `m`
+	// 	- buf is a `[]byte`
+	// 	- Convert this to String and dump it into `*m` (i.e. the final output of the function)
+
+	*m = String(buf)         // (2)
+	return n + int64(o), nil // Total number of bytes read = 5 (header) + `o` (payload)
+
+	// An important point (like Binary)
+	// 	- Here again as before:
+	// 		- `o, err := r.Read(buf)`
+	// 		- It does not guarantee to read all size bytes at once.
+	// 		- In the network it is better to use `io.ReadFull` to read exactly the full size bytes.
+	// 	- But to understand TLV, this simple model is shown.
 }
 
 // Listing 4-9: Decoding bytes from a reader into a Binary or String type
