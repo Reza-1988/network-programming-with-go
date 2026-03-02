@@ -356,29 +356,72 @@ func (m *Binary) ReadFrom(r io.Reader) (int64, error) {
 //	- The String type’s `WriteTo` method (3) is like Binary’s `WriteTo` method except the first byte written (4) is the StringType
 //		- and it casts the String to a byte slice before writing it to the writer (5).
 
+// 1) Defining the string type
+// 	- We created a new type called String
+// 	- which is essentially the same as string, we just gave it a name and behavior specific to TLV.
+
 type String string
 
-func (m String) Bytes() []byte  { return []byte(m) } // (1)
+// 2) `Bytes()` method
+// 	- Converts text (string) to bytes ([]byte)
+// 	- Because the network eventually moves bytes.
+// 	- For example, "Hi" becomes two bytes: 48 69
+
+func (m String) Bytes() []byte { return []byte(m) } // (1)
+
+// 3) `String()` methode
+// 	- This is just to give the actual text when you print/log.
+// 	- Since `m` itself is essentially a string, it's just a simple conversion.
+
 func (m String) String() string { return string(m) } // (2)
 
+// 4) `WriteTo` method (the most important part)
+// 	- This method writes the message TLV to `w`:
+// 	- The structure of the TLV is:
+// 		- Type → 1 byte
+// 		- Length → 4 bytes
+// 		- Value → text in bytes
+
 func (m String) WriteTo(w io.Writer) (int64, error) { // (3)
+
+	// 4.1) Write Type (here StringType)
+	// 	- Since this message is of type “String”, the first byte should be `StringType` (e.g. 2)
+	// 	- So the receiver understands: “I should interpret this payload as text”
+
 	err := binary.Write(w, binary.BigEndian, StringType) // 1-byte type (4)
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
-	var n int64 = 1
+	var n int64 = 1 // That means we have written 1 byte so far.
+
+	// 4.2) Write Length (4 bytes)
+	//	- `len(m)` is the length of the string (number of bytes of text)
+	// 	- We converted it to `uint32` so that it is always written as 4 bytes
+	//	- So the length of the message is also in the header
 
 	err = binary.Write(w, binary.BigEndian, uint32(len(m))) // 4-byte size
 	if err != nil {
 		return n, err
 	}
 
-	n += 4
+	n += 4 // So far n = 5 (full header)
+
+	// 4.3) Writing the payload (the text itself)
+	//	- Converts text to bytes and writes to writer
+	// 	- `o` tells how many bytes of text were actually written
 
 	o, err := w.Write([]byte(m)) // payload (5)
 
-	return n + int64(o), err
+	return n + int64(o), err // Total bytes written = (5 byte header) + (payload) and returns error if any
 }
+
+// A very simple example
+// 	- If m = "Hi":
+// 	- Type = `StringType` (e.g. `02`)
+//	- Length = 2 (`00 00 00 02`)
+// 	- Value = `48 69`
+// 	- So it goes over the network:
+// 		- `02 00 00 00 02 48 69`
 
 // Listing 4-8: Completing the String type’s implementation
 // 	- Here, too, String’s `ReadFrom` method is like Binary’s `ReadFrom` method, with two exceptions.
