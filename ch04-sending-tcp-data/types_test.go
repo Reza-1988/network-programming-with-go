@@ -2,6 +2,7 @@ package ch04
 
 import (
 	"net"
+	"reflect"
 	"testing"
 )
 
@@ -79,5 +80,92 @@ func TestPayloads(t *testing.T) {
 			}
 		}
 	}()
+
+	// Listing 4-11: Completing the TestPayloads test
+	// 	- You know how many types to expect in the payloads slice, so you initiate a connection to the listener (1) and attempt to decode each one (2).
+	//	- Finally, your test compares the type you decoded with the type the server sent (3).
+	//		- If there’s any discrepancy with the variable type or its contents, the test fails.
+	//		- You can run the test with the -v flag to see the type and its value 4.
+
+	// This is the “second half” of the test: the client connects, reads messages one by one over the connection, and compares them with what the server sent.
+
+	// 1) The client connects to the server
+	// 	- As before: the client connects to the listener.
+	// 	- Now `conn` is the stream of bytes into which the server has written the TLVs one after the other.
+
+	conn, err := net.Dial("tcp", listener.Addr().String()) // (1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	// 2) We loop because we know how many messages we expect.
+	// 	- `payloads` is the expected list: `&b1, &s1, &b2`
+	// 	- So we know we have to read exactly 3 messages in a row from the network.
+	// 	- So we `decode` 3 times.
+
+	for i := 0; i < len(payloads); i++ {
+
+		// 3) Each time `decode(conn)` reads a complete message TLV
+		// 	- `decode` reads from the connection:
+		// 		- First 1 byte type
+		// 		- Then 4 bytes length
+		//		- Then payload
+		// 		- And the result returns a value of type Payload:
+		// 			- Either *Binary Or *String
+		// 	- We named it `actual` because it's "what we actually got from the network".
+
+		actual, err := decode(conn) // (2)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// 4)
+		// 	- What exactly does this do?
+		// 		- This `if` does two things at once:
+		// 			- A) Creates a temporary variable: `expected := payloads[i]`
+		//				- That is: “The expected message in this loop round”
+		// 					- For example:
+		//						- in the first round: `expected = &b1`
+		// 						- In the second round: `expected = &s1`
+		//						- In the third round: `expected = &b2`
+		// 				- This expected variable can only be used inside this if (limited scope).
+		//			- B) compares whether `expected` and `actual` are the same.
+		//				- `!reflect.DeepEqual(expected, actual)`
+		//				- `reflect.DeepEqual` means “deep” comparison
+		//					- It checks for both type and content
+		// 						- So here it checks:
+		//							- Is what the server sent (expected)
+		// 							- exactly the same as what we decoded (actual)
+		// 							- Is it exactly the same?
+		// 								- If they are not the same → it enters the if body and tests for error.
+
+		if expected := payloads[i]; !reflect.DeepEqual(expected, actual) { // (3)
+
+			// 5) What would she do if it were different?
+			// 	- Meaning: “This message was different”
+			// 	- continue means go to the next message.
+
+			t.Errorf("value mismatch: %V, expected, actual")
+			continue
+		}
+
+		// 6) If equal, it takes the log
+		// 	- `%T` means print the variable type
+		// 	- 	- For example:
+		// 		- `*ch04.Binary` or `*ch03.String`
+		// 		- So the output is like: [*ch04.Binary] ...
+		// 	- What does `%[1]q` mean?
+		// 		- `[1]` means “use the first argument” (the same as actual)
+		// 		- `q` means “print with quotes” (like "...")
+		// 		- So this line means:
+		// 			- Print the type actual
+		// 			- And then print actual itself in quoted form
+		// 		- Why is actual printable with `%q`?
+		// 			- Because the Payload contains `fmt.Stringer` and has `String()`,
+		// 			- Go can convert actual to a string and print it.
+
+		t.Logf("[%T] %[1]q", actual) // (4)
+	}
 
 }
