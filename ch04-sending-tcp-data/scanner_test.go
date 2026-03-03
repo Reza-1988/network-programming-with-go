@@ -35,6 +35,7 @@ import (
 //   - This listener should look familiar by now.
 //   - All it’s meant to do is serve up the payload 1.
 //   - Listing 4-3 uses `bufio.Scanner` to read a string from the network, splitting each chunk by whitespace.
+
 const payload = "The bigger the interface, the weaker the abstraction."
 
 func TestScanner(t *testing.T) {
@@ -62,6 +63,7 @@ func TestScanner(t *testing.T) {
 	// 1) The client connects to the server
 	// 	- This line is like saying: "Connect to the same server we listened to above."
 	// 	- The output is conn (client-side TCP connection)
+
 	conn, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +74,7 @@ func TestScanner(t *testing.T) {
 	// 	- This means: "Create a scanner that reads data from conn."
 	//	- The scanner itself reads from the network behind the scenes with Read,
 	//	- but you don't have to worry about `Read(buf)` and delimiters.
+
 	scanner := bufio.NewScanner(conn) // (1)
 
 	// 3) Determine the data separation method: word by word
@@ -81,10 +84,12 @@ func TestScanner(t *testing.T) {
 	// 	- So this payload: "The bigger the interface, the weaker the abstraction."
 	// 	- It is broken down into words like: "The" "bigger" "the" "interface," ...
 	// 	- Note: interface retains the comma because ScanWords only recognizes whitespace as a separator, not punctuation.
+
 	scanner.Split(bufio.ScanWords)
 
 	// 4) A slice to collect words
 	// 	- We create an empty slice of string to store the words that Scanner returns.
+
 	var words []string
 
 	// 5) Word Reading Circle
@@ -95,6 +100,7 @@ func TestScanner(t *testing.T) {
 	// 		- `scanner.Text()` returns the word that was found this time as a string.
 	// 		- append also adds that word to the words list.
 	// 		- So the output of words is a list of all the words in the text.
+
 	for scanner.Scan() { // (2)
 		words = append(words, scanner.Text()) // (3)
 	}

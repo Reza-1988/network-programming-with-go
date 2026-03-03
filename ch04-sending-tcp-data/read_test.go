@@ -35,11 +35,14 @@ import (
 //   	- We create a local “server” (listener)
 //   	- A server goroutine sends 16MB of random data when the client connects
 //   	- The client connects and reads into a 512KB buffer with Read until the connection is closed.
+
 func TestReadIntoBuffer(t *testing.T) {
+
 	// 1) Creating a large payload (16MB)
 	// 	- `1<<24` means 2 to the power of 24 → 16,777,216 bytes ≈ 16MB
 	// 	- `rand.Read(payload)` fills this array with random bytes.
 	// 	- Goal: To have a large data that we have to read several times.
+
 	payload := make([]byte, 1<<24) // 16 MB (1)
 	_, err := rand.Read(payload)   // generate a random payload
 	if err != nil {
@@ -49,6 +52,7 @@ func TestReadIntoBuffer(t *testing.T) {
 	// 2) Building the server: `net.Listen`
 	// 	- means: Find a free port on the localhost (the system itself) and listen
 	// 	- That `:` means, the system itself chooses a free port.
+
 	listener, err := net.Listen("tcp", "127.0.0.1:")
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +64,7 @@ func TestReadIntoBuffer(t *testing.T) {
 	// 		- When it does, we get a conn (server-side connection).
 	// 		- Then `conn.Write(payload)` tries to send the entire 16MB over the network.
 	// 	- Note: Write doesn't necessarily send the entire 16MB "in one packet"; TCP breaks it up into chunks.
+
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
@@ -77,6 +82,7 @@ func TestReadIntoBuffer(t *testing.T) {
 	// 4) Client connects with `net.Dial`
 	// 	- This is a client-side connection.
 	// 	- The address it connects to is the listener (server) address.
+
 	conn, err := net.Dial("tcp", listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +92,7 @@ func TestReadIntoBuffer(t *testing.T) {
 	// 	- `1<<19` means 2 to the power of 19 → 524,288 bytes ≈ 512KB
 	// 	- The client buffer is much smaller than the payload.
 	// 	- So we have to read a few times.
+
 	buf := make([]byte, 1<<19) // 512 KB (3)
 
 	// 6) Read loop until the connection is complete
@@ -105,8 +112,10 @@ func TestReadIntoBuffer(t *testing.T) {
 	// 			- It is just a “Reader”, not a “memory builder”.
 	// 			- Memory management should be in your hands (so that you have control and the program does not eat RAM unnecessarily).
 	// 		- So here buf is like a “fixed container”, not a growing list.
+
 	for {
 		n, err := conn.Read(buf) //(4)
+
 		// 7) Why does the loop finally end?
 		// 	- When the server is done and `conn.Close()` is executed (due to defer conn.Close() on the server), the connection is closed.
 		// 	- Then on the client side:
@@ -115,20 +124,24 @@ func TestReadIntoBuffer(t *testing.T) {
 		// 	- This code says:
 		//		- If the error was EOF → normal → loop complete
 		// 		- If it was another error → real problem → error log
+
 		if err != nil {
 			if err != io.EOF {
 				t.Error(err)
 			}
 			break
 		}
+
 		// 8) What does buf[:n] mean?
 		// 	- When you read, only the 0 to n-1 parts of buf are new data.
 		// 	- The rest of the buffer may already have something in it or be zero.
 		// 	- So the "real data" each round is: buf[:n]
+
 		t.Logf("read %d bytes", n) // buf[:n] is the data read from conn
 	}
 
 	// 9) Finally, the client closes the connection.
 	// 	- (It would have been better to also put defer conn.Close(), but that's okay.)
+
 	_ = conn.Close()
 }
