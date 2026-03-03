@@ -509,14 +509,47 @@ func (m *String) ReadFrom(r io.Reader) (int64, error) {
 //		- Then, the `ReadFrom` method would read only the 4-byte size and the payload, eliminating the need to inject the type byte back into the reader before passing it on to ReadFrom.
 //		- As an exercise, I recommend you refactor the code to eliminate the need for io.MultiReader.
 
+// This `decode` works exactly like a "translator":
+// 	- it detects whether the message is Binary or String from the bytes coming from the network/Reader, and then creates and skips the same type.
+// The general picture of the TLV coming from `r`
+// 	- on the network looks like this:
+// 		- 1 byte Type
+// 		- 4 bytes Length
+// 		- Length byte Value
+// 	- So first we need to read the Type to understand what we are dealing with.
+// 1) What does the decode function take and return?
+// 	- Input: `r io.Reader` (can be `net.Conn`, `file`, `bytes.Reader`…)
+// 	- Output:
+// 		- A Payload (i.e. either `*Binary` or `*String`)
+// 		- Or error if unable to recognize/read
+
 func decode(r io.Reader) (Payload, error) { // (1)
+
+	// 2) First reads 1 byte of Type
+	// 	- Because typ is of type `uint8` → exactly 1 byte is read from `r`.
+	// 	- Now typ becomes for example:
+	// 		- 1 → BinaryType
+	// 		- 2 → StringType
+	// 		- If an error occurs here (like EOF) → return nil, err
+
 	var typ uint8
 	err := binary.Read(r, binary.BigEndian, &typ) // (2)
 	if err != nil {
 		return nil, err
 	}
 
+	// 3) We create a Payload variable that we will later put the correct type into.
+	//	- This means that we don't know at this point whether it's `Binary` or `String`; we have a "generic" variable.
+
 	var payload Payload // (3)
+
+	// 4) decides what type to make with switch
+	// 	- If typ == 1 → creates a new `*Binary`
+	// 	- If typ == 2 → creates a new `*String`
+	// 	- If anything else → this is not our protocol → error
+	// What does `new(Binary)` mean?
+	// 	- Creates an empty Binary in memory and gives its address: `*Binary`
+	// 	- Because ReadFrom works on pointers (it wants to fill the value)
 
 	switch typ { // (4)
 	case BinaryType:
@@ -527,10 +560,42 @@ func decode(r io.Reader) (Payload, error) { // (1)
 		return nil, errors.New("unknown type")
 	}
 
+	// 5) Now we need to read the rest of the message with `ReadFrom`… but we have a problem.
+	// 	- Look at this line: `_, err = payload.ReadFrom(r)`
+	// 		- If we did this, we would have a problem because:
+	// 			- We have already read 1 byte of type from `r`.
+	// 			- But Binary/String `ReadFrom`s assume:
+	// 				- The first thing I read is type
+	//					- That is, `ReadFrom` expects the stream to be this from the beginning: [type][length][payload]
+	//					- But now if we give `r` directly, the stream starts here: [length][payload]
+	//						- So `ReadFrom` crashes because it thinks the first byte (which is actually part of length) is the same type!
+	// 6) Temporary solution: "Return" the Type in front of the reader with `io.MultiReader`
+	// 	- What exactly does this do?
+	// 		- `bytes.NewReader([]byte{typ})` creates a small Reader that returns just that one byte of `typ`.
+	// 		- `io.MultiReader(A, B)` means:
+	// 			- Read from the first Reader (A) first
+	// 			- When finished, continue from the second Reader (B)
+	// 		- So the result is that `ReadFrom` acts as if it were reading from an entire stream: [`typ`] + (rest of `r`)
+	//			- This means the stream is complete again: [type][length][payload]
+	//			- From `ReadFrom`'s perspective, everything is normal.
+
 	_, err = payload.ReadFrom(
 		io.MultiReader(bytes.NewReader([]byte{typ}), r)) // (5)
 	if err != nil {
 		return nil, err
 	}
-	return payload, nil
+	return payload, nil // If everything was OK: This means you have a ready payload that is either `*Binary` or `*String`.
+
+	// Why does the book itself say this method is “not optimal”?
+	// 	- Because this is a kind of “trick”:
+	// 		- First we ate a `byte`
+	// 		- Then we had to put the same byte back into the stream with `MultiReader`
+	// 	- A better way is to change the design:
+	// 		- `decode` itself reads the Type
+	// 		- Then `ReadFrom` does not read any other Type
+	// 		- Only:
+	// 			- length (4 bytes)
+	// 			- payload (length size)
+	// 			- Then there is no need for `MultiReader`.
+
 }
