@@ -13,14 +13,16 @@ import (
 // 	- Likewise, you could read bytes from any object that implements the `io.Reader` interface and send them to the writer.
 //	- This implementation of proxy supports replies if the from reader implements the `io.Writer` interface and the to writer implements the `io.Reader `interface.
 
-func proxy(from io.Reader, to io.Writer) error { // (1)
+func proxy(from io.Reader, to io.Writer) error {
 	fromWriter, fromIsWriter := from.(io.Writer)
 	toReader, toIsReader := to.(io.Reader)
 
 	if toIsReader && fromIsWriter {
-		//Send replies since "form" and to Implement the necessary interface.
+		// Send replies since "from" and "to" implement the
+		// necessary interfaces.
 		go func() { _, _ = io.Copy(fromWriter, toReader) }()
 	}
+
 	_, err := io.Copy(to, from)
 	return err
 }
@@ -77,6 +79,44 @@ func TestProxy(t *testing.T) {
 
 						return
 					}
+				}
+			}(conn)
+		}
+	}()
+
+	// Listing 4-17: Set up the proxy between the client and server
+
+	// proxyServer proxies messages from client connections to the
+	// destinationServer. Replies from the destinationServer are proxied
+	// back to the clients.
+	proxyServer, err := net.Listen("tcp", "127.0.0.1:")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			conn, err := proxyServer.Accept()
+			if err != nil {
+				return
+			}
+
+			go func(from net.Conn) {
+				defer from.Close()
+				to, err := net.Dial("tcp",
+					server.Addr().String())
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer to.Close()
+
+				err = proxy(from, to)
+				if err != nil && err != io.EOF {
+					t.Error(err)
 				}
 			}(conn)
 		}
