@@ -85,11 +85,17 @@ func TestProxy(t *testing.T) {
 	}()
 
 	// Listing 4-17: Set up the proxy between the client and server
+	// 	- You then set up a proxy server (1) that handles the message passing between the client and the destination server.
+	//	- The proxy server listens for incoming client connections. Once a client connection accepts (2),
+	//    the proxy establishes a connection to the destination server (3) and starts proxying messages (4).
+	//  - Since the proxy server passes two `net.Conn` objects to proxy, and `net.Conn` implements the `io.ReadWriter` interface, the server proxies replies automatically.
+	// 	- Then `io.Copy` writes to the Write method of the destination `net.Conn` everything it reads from the Read method of the origin `net.Conn`,
+	//	  and vice versa for replies from the destination to the origin.
 
 	// proxyServer proxies messages from client connections to the
 	// destinationServer. Replies from the destinationServer are proxied
 	// back to the clients.
-	proxyServer, err := net.Listen("tcp", "127.0.0.1:")
+	proxyServer, err := net.Listen("tcp", "127.0.0.1:") // (1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,14 +105,14 @@ func TestProxy(t *testing.T) {
 		defer wg.Done()
 
 		for {
-			conn, err := proxyServer.Accept()
+			conn, err := proxyServer.Accept() // (2)
 			if err != nil {
 				return
 			}
 
 			go func(from net.Conn) {
 				defer from.Close()
-				to, err := net.Dial("tcp",
+				to, err := net.Dial("tcp", // (3)
 					server.Addr().String())
 				if err != nil {
 					t.Error(err)
@@ -114,7 +120,7 @@ func TestProxy(t *testing.T) {
 				}
 				defer to.Close()
 
-				err = proxy(from, to)
+				err = proxy(from, to) // (4)
 				if err != nil && err != io.EOF {
 					t.Error(err)
 				}
