@@ -26,13 +26,15 @@ func proxy(from io.Reader, to io.Writer) error { // (1)
 }
 
 // Listing 4-16: Creating the listener
+// 	- You start by initializing a server (1) that listens for incoming connections.
+//	- It reads bytes from each connection, replies with the string "pong" when it receives the string "ping," and echoes any other message it receives.
 
 func TestProxy(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// server listens for a "ping" message and responds with a
 	// "pong" message. All other messages are echoed back to the client.
-	server, err := net.Listen("tcp", "127.0.0.1:")
+	server, err := net.Listen("tcp", "127.0.0.1:") // (1)
 	if err != nil {
 		t.Fatal(err)
 	}
