@@ -127,3 +127,41 @@ func TestProxy(t *testing.T) {
 			}(conn)
 		}
 	}()
+
+	// Listing 4-18: Proxying data from an upstream server to a downstream server
+
+	conn, err := net.Dial("tcp", proxyServer.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msgs := []struct{ Message, Reply string }{
+		{"ping", "pong"},
+		{"pong", "pong"},
+		{"echo", "echo"},
+		{"ping", "pong"},
+	}
+
+	for i, m := range msgs {
+		_, err = conn.Write([]byte(m.Message))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if actual := string(buf[:n]); actual != m.Reply {
+			t.Errorf("%d: expected reply: %q; actual: %q",
+				i, m.Reply, actual)
+		}
+	}
+
+	_ = conn.Close()
+	_ = proxyServer.Close()
+	_ = server.Close()
+	wg.Wait()
+}
