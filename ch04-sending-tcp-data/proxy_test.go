@@ -129,6 +129,20 @@ func TestProxy(t *testing.T) {
 	}()
 
 	// Listing 4-18: Proxying data from an upstream server to a downstream server
+	// 	- You run the proxy through a series of tests (1) to verify that your ping messages result in pong replies and that the destination echoes anything else you send.
+	// 	  The output should look like the following:
+	//	$ go test -race -v proxy_test.go // (1)
+	//  === RUN TestProxy
+	//	--- PASS: TestProxy (0.00s)
+	//		proxy_test.go:138: "ping" -> proxy -> "pong"
+	//		proxy_test.go:138: "pong" -> proxy -> "pong"
+	//		proxy_test.go:138: "echo" -> proxy -> "echo"
+	//		proxy_test.go:138: "ping" -> proxy -> "pong"
+	//	PASS
+	//	ok command-line-arguments 1.018s
+	// 	- I’m in the habit of running my tests with the `-race` flag (1) to enable the race detector.
+	//	  The race detector can help alert you to data races that need your attention.
+	//	  Although not necessary for this test, enabling it is a good habit.
 
 	conn, err := net.Dial("tcp", proxyServer.Addr().String())
 	if err != nil {
