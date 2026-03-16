@@ -13,15 +13,63 @@ import (
 // 	- Likewise, you could read bytes from any object that implements the `io.Reader` interface and send them to the writer.
 //	- This implementation of proxy supports replies if the from reader implements the `io.Writer` interface and the to writer implements the `io.Reader `interface.
 
+// Purpose of the proxy function
+// 	- `from` = where data is read from
+//  - `to` = where data is written to
+// 		- So its main job:
+// 	- Whatever I read from `from`, I write to `to`
+
 func proxy(from io.Reader, to io.Writer) error {
+
+	// 1) Checks whether `from` is a Writer in addition to being a Reader.
+	// 	- This line means:
+	// 		- Is from really `io.Writer`?
+	// 		- If yes:
+	// 			- `fromWriter` is the same as `from` but in the form `io.Writer`
+	// 			- fromIsWriter = true
+	// 		- If not:
+	// 			- fromIsWriter = false
+	// 	- Example:
+	// 		- If from is a `net.Conn` → it is both a Reader and a Writer ✅
+	// 		- If from is a read-only file → it may not be a Writer ❌
+
 	fromWriter, fromIsWriter := from.(io.Writer)
+
+	// 2) Checks if to is a Reader in addition to being a Writer?
+	// 	- This means:
+	// 		- Can `to` read data from the other side?
+	// 			- If yes: toIsReader = true
+	// 			- If no: false
+	// 	- Example:
+	// 		- If to is a `net.Conn` → it is also a Reader ✅
+	// 		- If to is, for example, `os.Stdout` → it is only a Writer, not a Reader ❌
+
 	toReader, toIsReader := to.(io.Reader)
+
+	// 3) If both sides have the “round trip” capability, it creates a goroutine for the return path
+	// 	- This condition means:
+	// 		- `to` can be read (is a Reader) -> means the reply comes from `to`
+	// 		- and `from` can be written (is a Writer) -> means we can return the reply to from
+	// 	- If these two conditions are met, it means the two sides are like a network connection and the reply can be passed.
+	// 	- So what does this goroutine do?
+	// 		- it  means:
+	// 			- Whatever came from toReader (to side)
+	// 			- Write to fromWriter (from side)
+	//				- means the return path: to → from
 
 	if toIsReader && fromIsWriter {
 		// Send replies since "from" and "to" implement the
 		// necessary interfaces.
 		go func() { _, _ = io.Copy(fromWriter, toReader) }()
 	}
+
+	// 4) The main path is always done: from → to
+	// 	- This line means:
+	// 		- Send everything that comes from `from` to `to`
+	// 		- until:
+	// 			- `from` ends (`EOF`)
+	// 			- or an error occurs
+	// 		- and finally returns the error.
 
 	_, err := io.Copy(to, from)
 	return err
